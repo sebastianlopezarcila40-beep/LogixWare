@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, Response, send_file
 import sqlite3
+import psycopg2
+from psycopg2.extras import DictCursor
 from datetime import datetime
 import csv
 import io
@@ -14,7 +16,12 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.units import inch
 
 app = Flask(__name__)
-app.secret_key = "logixware_secret_key"
+
+# Configuración segura de Llave Secreta desde el entorno o fallback seguro
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "logixware_secret_key")
+
+# Detección dinámica de Base de Datos (PostgreSQL en Railway / SQLite en Local)
+DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_NAME = "LogixWAre.db"
 
 ROLES = {
@@ -291,24 +298,66 @@ MODULOS = {
 
 SLUGS = {"reportes-admin": "reportes_admin"}
 
+# Clase Adaptadora para unificar consultas SQLite y PostgreSQL
+class EnvoltorioFila:
+    def __init__(self, data_dict):
+        self._data = data_dict
+    def __getitem__(self, key):
+        return self._data.get(key)
+    def keys(self):
+        return self._data.keys()
+
+class WrapperConexion:
+    def __init__(self, conn, is_postgres=False):
+        self.conn = conn
+        self.is_postgres = is_postgres
+    def execute(self, query, params=()):
+        if self.is_postgres:
+            # Reemplazar los '?' de SQLite por '%s' de PostgreSQL
+            query = query.replace('?', '%s')
+            # Manejo del AUTOINCREMENT implícito en Postgres SERIAL/BIGSERIAL
+            if "AUTOINCREMENT" in query:
+                query = query.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        return cursor
+    def commit(self):
+        self.conn.commit()
+    def close(self):
+        self.conn.close()
 
 def get_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
+    global DATABASE_URL
+    if DATABASE_URL:
+        # Corrección por si Railway inyecta postgres:// hely de postgresql://
+        if DATABASE_URL.startswith("postgres://"):
+            DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
+        return WrapperConexion(conn, is_postgres=True)
+    else:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        return WrapperConexion(conn, is_postgres=False)
 
 def add_column_if_missing(conn, table, column):
-    cols = [c[1] for c in conn.execute(f"PRAGMA table_info({table})").fetchall()]
-    if column not in cols:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
-
+    if conn.is_postgres:
+        cursor = conn.conn.cursor()
+        cursor.execute(f"""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name='{table}' AND column_name='{column}'
+        """)
+        if not cursor.fetchone():
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+    else:
+        cols = [c[1] for c in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
 def init_db():
     conn = get_db()
-
+    
     conn.execute("""CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nombre TEXT NOT NULL,
         usuario TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
@@ -317,7 +366,7 @@ def init_db():
     )""")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS contratos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         institucion TEXT NOT NULL,
         sistema TEXT NOT NULL,
         fecha_inicio TEXT NOT NULL,
@@ -327,7 +376,7 @@ def init_db():
     )""")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS auditoria (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         fecha TEXT NOT NULL,
         usuario TEXT NOT NULL,
         accion TEXT NOT NULL,
@@ -336,7 +385,7 @@ def init_db():
     )""")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS registros (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         modulo TEXT NOT NULL,
         titulo TEXT,
         detalle TEXT,
@@ -364,14 +413,11 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 def protegido():
     return "user" in session
 
-
 def tiene_permiso(modulo):
     return modulo in ROLES.get(session.get("rol", ""), [])
-
 
 def validar_acceso(modulo):
     if not protegido():
@@ -379,7 +425,6 @@ def validar_acceso(modulo):
     if not tiene_permiso(modulo):
         return redirect(url_for("sin_permiso"))
     return None
-
 
 def auditar(accion, modulo):
     if "nombre" not in session:
@@ -392,21 +437,17 @@ def auditar(accion, modulo):
     conn.commit()
     conn.close()
 
-
 def normalizar_modulo(slug):
     return SLUGS.get(slug, slug.replace("-", "_"))
 
-
 def ruta_modulo(modulo):
     return modulo.replace("_", "-")
-
 
 def label_for(config, col):
     for f in config["fields"]:
         if f["name"] == col:
             return f["label"]
     return col
-
 
 def money(value):
     try:
@@ -415,20 +456,17 @@ def money(value):
     except:
         return value or ""
 
-
 def obtener_registros(modulo):
     conn = get_db()
     registros = conn.execute("SELECT * FROM registros WHERE modulo=? ORDER BY id DESC", (modulo,)).fetchall()
     conn.close()
     return registros
 
-
 def obtener_contrato(id):
     conn = get_db()
     contrato = conn.execute("SELECT * FROM contratos WHERE id=?", (id,)).fetchone()
     conn.close()
     return contrato
-
 
 def encabezado_pdf(elements, styles):
     logo_path = os.path.join(app.root_path, "static", "img", "logo.png")
@@ -477,7 +515,6 @@ def encabezado_pdf(elements, styles):
 
     elements.append(tabla)
     elements.append(Spacer(1, 24))
-
 
 def crear_pdf(modulo, registros):
     config = MODULOS[modulo]
@@ -541,7 +578,6 @@ def crear_pdf(modulo, registros):
 
     buffer.seek(0)
     return buffer
-
 
 def crear_contrato_pdf(contrato, tipo="copia"):
     buffer = io.BytesIO()
@@ -609,11 +645,10 @@ def crear_contrato_pdf(contrato, tipo="copia"):
     ]))
 
     elements.append(firmas)
-    doc.build(elements)
+    doc.build(firmas)
 
     buffer.seek(0)
     return buffer
-
 
 def crear_csv(modulo, registros):
     config = MODULOS[modulo]
@@ -628,7 +663,6 @@ def crear_csv(modulo, registros):
 
     return output.getvalue()
 
-
 def logo_base64():
     logo_path = os.path.join(app.root_path, "static", "img", "logo.png")
 
@@ -639,7 +673,6 @@ def logo_base64():
         encoded = base64.b64encode(f.read()).decode("utf-8")
 
     return f"data:image/png;base64,{encoded}"
-
 
 def crear_word_html(modulo, registros):
     config = MODULOS[modulo]
@@ -773,7 +806,6 @@ def crear_word_html(modulo, registros):
 
     return html
 
-
 @app.context_processor
 def globales():
     permisos = ROLES.get(session.get("rol", ""), [])
@@ -783,7 +815,6 @@ def globales():
         "menu_visible": [m for m in MENU if m[1] in permisos],
         "permisos": permisos
     }
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -806,13 +837,11 @@ def login():
 
     return render_template("login.html")
 
-
 @app.route("/logout")
 def logout():
     auditar("Cierre de sesión", "Login")
     session.clear()
     return redirect(url_for("login"))
-
 
 @app.route("/")
 def dashboard():
@@ -832,7 +861,6 @@ def dashboard():
         total_usuarios=total_usuarios
     )
 
-
 @app.route("/sin-permiso")
 def sin_permiso():
     return render_template(
@@ -840,7 +868,6 @@ def sin_permiso():
         titulo="Acceso denegado",
         descripcion="No tienes permisos para entrar a esta sección."
     )
-
 
 @app.route("/logs")
 def logs():
@@ -854,7 +881,6 @@ def logs():
 
     return render_template("logs.html", logs=logs)
 
-
 @app.route("/accesos")
 def accesos():
     bloqueo = validar_acceso("accesos")
@@ -862,7 +888,6 @@ def accesos():
         return bloqueo
 
     return render_template("accesos.html", roles=ROLES)
-
 
 @app.route("/usuarios")
 def usuarios():
@@ -876,7 +901,6 @@ def usuarios():
 
     return render_template("usuarios.html", usuarios=usuarios)
 
-
 @app.route("/usuarios/nuevo", methods=["GET", "POST"])
 def nuevo_usuario():
     bloqueo = validar_acceso("usuarios")
@@ -885,373 +909,30 @@ def nuevo_usuario():
 
     if request.method == "POST":
         conn = get_db()
-        conn.execute(
-            "INSERT INTO usuarios (nombre, usuario, password, rol, estado) VALUES (?, ?, ?, ?, ?)",
-            (
-                request.form["nombre"],
-                request.form["usuario"],
-                request.form["password"],
-                request.form["rol"],
-                request.form["estado"]
+        try:
+            conn.execute(
+                "INSERT INTO usuarios (nombre, usuario, password, rol, estado) VALUES (?, ?, ?, ?, ?)",
+                (
+                    request.form["nombre"],
+                    request.form["usuario"],
+                    request.form["password"],
+                    request.form["rol"],
+                    request.form["estado"]
+                )
             )
-        )
-        conn.commit()
-        conn.close()
-        auditar("Creó usuario", "Usuarios")
+            conn.commit()
+            auditar("Crear usuario", "Usuarios")
+        except Exception as e:
+            print(f"Error al guardar usuario: {e}")
+        finally:
+            conn.close()
         return redirect(url_for("usuarios"))
 
-    return render_template("usuario_form.html", usuario=None, roles=ROLES.keys())
+    return render_template("nuevo_usuario.html")
 
-
-@app.route("/usuarios/editar/<int:id>", methods=["GET", "POST"])
-def editar_usuario(id):
-    bloqueo = validar_acceso("usuarios")
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    usuario = conn.execute("SELECT * FROM usuarios WHERE id=?", (id,)).fetchone()
-
-    if request.method == "POST":
-        conn.execute(
-            "UPDATE usuarios SET nombre=?, usuario=?, password=?, rol=?, estado=? WHERE id=?",
-            (
-                request.form["nombre"],
-                request.form["usuario"],
-                request.form["password"],
-                request.form["rol"],
-                request.form["estado"],
-                id
-            )
-        )
-        conn.commit()
-        conn.close()
-        auditar("Editó usuario", "Usuarios")
-        return redirect(url_for("usuarios"))
-
-    conn.close()
-    return render_template("usuario_form.html", usuario=usuario, roles=ROLES.keys())
-
-
-@app.route("/usuarios/eliminar/<int:id>")
-def eliminar_usuario(id):
-    bloqueo = validar_acceso("usuarios")
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    conn.execute("DELETE FROM usuarios WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-    auditar("Eliminó usuario", "Usuarios")
-    return redirect(url_for("usuarios"))
-
-
-@app.route("/contratos")
-def contratos():
-    bloqueo = validar_acceso("contratos")
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    contratos = conn.execute("SELECT * FROM contratos ORDER BY id DESC").fetchall()
-    conn.close()
-
-    return render_template("contratos.html", contratos=contratos)
-
-
-@app.route("/contratos/nuevo", methods=["GET", "POST"])
-def nuevo_contrato():
-    bloqueo = validar_acceso("contratos")
-    if bloqueo:
-        return bloqueo
-
-    if request.method == "POST":
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO contratos (institucion, sistema, fecha_inicio, fecha_vencimiento, valor, estado) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                request.form["institucion"],
-                request.form["sistema"],
-                request.form["fecha_inicio"],
-                request.form["fecha_vencimiento"],
-                request.form["valor"],
-                request.form["estado"]
-            )
-        )
-        conn.commit()
-        conn.close()
-        auditar("Creó contrato", "Contratos")
-        return redirect(url_for("contratos"))
-
-    return render_template("contrato_form.html", contrato=None)
-
-
-@app.route("/contratos/editar/<int:id>", methods=["GET", "POST"])
-def editar_contrato(id):
-    bloqueo = validar_acceso("contratos")
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    contrato = conn.execute("SELECT * FROM contratos WHERE id=?", (id,)).fetchone()
-
-    if request.method == "POST":
-        conn.execute(
-            "UPDATE contratos SET institucion=?, sistema=?, fecha_inicio=?, fecha_vencimiento=?, valor=?, estado=? WHERE id=?",
-            (
-                request.form["institucion"],
-                request.form["sistema"],
-                request.form["fecha_inicio"],
-                request.form["fecha_vencimiento"],
-                request.form["valor"],
-                request.form["estado"],
-                id
-            )
-        )
-        conn.commit()
-        conn.close()
-        auditar("Editó contrato", "Contratos")
-        return redirect(url_for("contratos"))
-
-    conn.close()
-    return render_template("contrato_form.html", contrato=contrato)
-
-
-@app.route("/contratos/eliminar/<int:id>")
-def eliminar_contrato(id):
-    bloqueo = validar_acceso("contratos")
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    conn.execute("DELETE FROM contratos WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-    auditar("Eliminó contrato", "Contratos")
-    return redirect(url_for("contratos"))
-
-
-@app.route("/contratos/pdf/<int:id>/<tipo>")
-def contrato_pdf(id, tipo):
-    bloqueo = validar_acceso("contratos")
-    if bloqueo:
-        return bloqueo
-
-    contrato = obtener_contrato(id)
-
-    if not contrato:
-        return redirect(url_for("contratos"))
-
-    pdf = crear_contrato_pdf(contrato, tipo)
-    filename = f"contrato_{tipo}_{id}.pdf"
-
-    return send_file(
-        pdf,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="application/pdf"
-    )
-
-
-@app.route("/<path:slug>/export/<fmt>")
-def exportar_modulo(slug, fmt):
-    modulo = normalizar_modulo(slug)
-
-    if modulo not in MODULOS:
-        return redirect(url_for("dashboard"))
-
-    bloqueo = validar_acceso(modulo)
-    if bloqueo:
-        return bloqueo
-
-    registros = obtener_registros(modulo)
-    filename = f"{modulo}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-    if fmt == "pdf":
-        pdf = crear_pdf(modulo, registros)
-        return send_file(
-            pdf,
-            as_attachment=True,
-            download_name=f"{filename}.pdf",
-            mimetype="application/pdf"
-        )
-
-    if fmt == "csv":
-        csv_data = crear_csv(modulo, registros)
-        return Response(
-            csv_data,
-            mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment;filename={filename}.csv"}
-        )
-
-    if fmt == "word":
-        html = crear_word_html(modulo, registros)
-        return Response(
-            html,
-            mimetype="application/msword",
-            headers={"Content-Disposition": f"attachment;filename={filename}.doc"}
-        )
-
-    return redirect("/" + ruta_modulo(modulo))
-
-
-@app.route("/<path:slug>")
-def vista_modulo(slug):
-    modulo = normalizar_modulo(slug)
-
-    if modulo not in MODULOS:
-        return redirect(url_for("dashboard"))
-
-    bloqueo = validar_acceso(modulo)
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    registros = conn.execute(
-        "SELECT * FROM registros WHERE modulo=? ORDER BY id DESC",
-        (modulo,)
-    ).fetchall()
-    conn.close()
-
-    return render_template(
-        "crud.html",
-        modulo=modulo,
-        slug=ruta_modulo(modulo),
-        config=MODULOS[modulo],
-        registros=registros,
-        registro=None
-    )
-
-
-@app.route("/<path:slug>/nuevo", methods=["GET", "POST"])
-def nuevo_modulo(slug):
-    modulo = normalizar_modulo(slug)
-
-    if modulo not in MODULOS:
-        return redirect(url_for("dashboard"))
-
-    bloqueo = validar_acceso(modulo)
-    if bloqueo:
-        return bloqueo
-
-    config = MODULOS[modulo]
-
-    if request.method == "POST":
-        data = {f["name"]: request.form.get(f["name"], "") for f in config["fields"]}
-
-        conn = get_db()
-        conn.execute("""
-            INSERT INTO registros
-            (modulo, titulo, detalle, estado, fecha, extra1, extra2, extra3, extra4, extra5, extra6)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            modulo,
-            data.get("titulo", ""),
-            data.get("detalle", ""),
-            data.get("estado", "Activo"),
-            datetime.now().strftime("%Y-%m-%d"),
-            data.get("extra1", ""),
-            data.get("extra2", ""),
-            data.get("extra3", ""),
-            data.get("extra4", ""),
-            data.get("extra5", ""),
-            data.get("extra6", "")
-        ))
-        conn.commit()
-        conn.close()
-
-        auditar("Creó registro", config["titulo"])
-        return redirect("/" + ruta_modulo(modulo))
-
-    return render_template(
-        "crud.html",
-        modulo=modulo,
-        slug=ruta_modulo(modulo),
-        config=config,
-        registros=[],
-        registro=None,
-        creando=True
-    )
-
-
-@app.route("/<path:slug>/editar/<int:id>", methods=["GET", "POST"])
-def editar_modulo(slug, id):
-    modulo = normalizar_modulo(slug)
-
-    if modulo not in MODULOS:
-        return redirect(url_for("dashboard"))
-
-    bloqueo = validar_acceso(modulo)
-    if bloqueo:
-        return bloqueo
-
-    config = MODULOS[modulo]
-    conn = get_db()
-    registro = conn.execute("SELECT * FROM registros WHERE id=?", (id,)).fetchone()
-
-    if request.method == "POST":
-        data = {f["name"]: request.form.get(f["name"], "") for f in config["fields"]}
-
-        conn.execute("""
-            UPDATE registros
-            SET titulo=?, detalle=?, estado=?, extra1=?, extra2=?, extra3=?, extra4=?, extra5=?, extra6=?
-            WHERE id=?
-        """, (
-            data.get("titulo", ""),
-            data.get("detalle", ""),
-            data.get("estado", "Activo"),
-            data.get("extra1", ""),
-            data.get("extra2", ""),
-            data.get("extra3", ""),
-            data.get("extra4", ""),
-            data.get("extra5", ""),
-            data.get("extra6", ""),
-            id
-        ))
-        conn.commit()
-        conn.close()
-
-        auditar("Editó registro", config["titulo"])
-        return redirect("/" + ruta_modulo(modulo))
-
-    registros = conn.execute(
-        "SELECT * FROM registros WHERE modulo=? ORDER BY id DESC",
-        (modulo,)
-    ).fetchall()
-    conn.close()
-
-    return render_template(
-        "crud.html",
-        modulo=modulo,
-        slug=ruta_modulo(modulo),
-        config=config,
-        registros=registros,
-        registro=registro,
-        editando=True
-    )
-
-
-@app.route("/<path:slug>/eliminar/<int:id>")
-def eliminar_modulo(slug, id):
-    modulo = normalizar_modulo(slug)
-
-    if modulo not in MODULOS:
-        return redirect(url_for("dashboard"))
-
-    bloqueo = validar_acceso(modulo)
-    if bloqueo:
-        return bloqueo
-
-    conn = get_db()
-    conn.execute("DELETE FROM registros WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-
-    auditar("Eliminó registro", MODULOS[modulo]["titulo"])
-    return redirect("/" + ruta_modulo(modulo))
-
+# Inicializar Base de Datos al arrancar la App
+init_db()
 
 if __name__ == "__main__":
-    init_db()
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
