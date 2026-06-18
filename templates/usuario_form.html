@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-head">
+  <div>
+    {% if usuario %}
+      <h1>Editar usuario</h1>
+      <p>Modifica el rol, estado o datos de acceso</p>
+    {% else %}
+      <h1>Crear usuario</h1>
+      <p>Registra un nuevo acceso al sistema interno</p>
+    {% endif %}
+  </div>
+</section>
+
+<div class="panel form-panel">
+  <form method="POST">
+    <label>Nombre completo</label>
+    <input name="nombre" required value="{{ usuario.nombre if usuario else '' }}">
+
+    <label>Usuario</label>
+    <input name="usuario" required value="{{ usuario.usuario if usuario else '' }}">
+
+    <label>Contraseña</label>
+    <input name="password" required value="{{ usuario.password if usuario else '' }}">
+
+    <label>Rol</label>
+    <select name="rol" required>
+      {% for rol in roles %}
+        <option value="{{ rol }}" {% if usuario and usuario.rol == rol %}selected{% endif %}>{{ rol }}</option>
+      {% endfor %}
+    </select>
+
+    <label>Estado</label>
+    <select name="estado" required>
+      <option value="Activo" {% if usuario and usuario.estado == 'Activo' %}selected{% endif %}>Activo</option>
+      <option value="Inactivo" {% if usuario and usuario.estado == 'Inactivo' %}selected{% endif %}>Inactivo</option>
+    </select>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar</button>
+      <a class="btn secondary" href="/usuarios">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

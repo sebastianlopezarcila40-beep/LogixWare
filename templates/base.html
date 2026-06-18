@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>LogixWare</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="logo">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
+      <div>
+        <b>LogixWare</b>
+        <span>Sistema interno</span>
+      </div>
+    </div>
+
+    <span class="menu-title">MENÚ PRINCIPAL</span>
+
+    <nav>
+      {% for nombre, permiso, ruta in menu_visible %}
+        <a href="{{ ruta }}" class="{% if request.path == ruta %}active{% endif %}">
+          {{ nombre }}
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div class="profile">
+      <div class="photo">{{ nombre_actual[0] if nombre_actual else 'U' }}</div>
+      <div>
+        <b>{{ nombre_actual }}</b>
+        <span>{{ rol_actual }}</span>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div class="brand">
+        <b>LogixWare</b>
+        <span>Panel de control empresarial</span>
+      </div>
+
+      <div class="user">
+        <strong>{{ nombre_actual }}</strong>
+        <small>{{ rol_actual }}</small>
+        <a href="/logout">Salir</a>
+      </div>
+    </header>
+
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+</body>
+</html>

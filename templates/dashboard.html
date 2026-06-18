@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="welcome">
+  <div>
+    <h1>¡Bienvenido, {{ nombre_actual }}! 👋</h1>
+    <p>Resumen general según tu rol: {{ rol_actual }}</p>
+  </div>
+
+  <button>{{ rol_actual }}</button>
+</section>
+
+<section class="cards">
+  <div class="card">
+    <div class="icon blue"></div>
+    <p>Contratos activos</p>
+    <h2>{{ total_contratos }}</h2>
+    <a href="/contratos">Ver todos</a>
+  </div>
+
+  <div class="card">
+    <div class="icon green"></div>
+    <p>Usuarios registrados</p>
+    <h2>{{ total_usuarios }}</h2>
+    <a href="/usuarios">Ver usuarios</a>
+  </div>
+
+  <div class="card">
+    <div class="icon purple"></div>
+    <p>Rol actual</p>
+    <h2>Activo</h2>
+    <a href="/accesos">Ver permisos</a>
+  </div>
+
+  <div class="card">
+    <div class="icon orange"></div>
+    <p>Estado del sistema</p>
+    <h2>Online</h2>
+    <a href="/logs">Ver logs</a>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="panel large">
+    <h3>Contratos recientes</h3>
+
+    <table>
+      <tr>
+        <th>Institución</th>
+        <th>Sistema</th>
+        <th>Vencimiento</th>
+        <th>Estado</th>
+      </tr>
+
+      {% for contrato in contratos %}
+      <tr>
+        <td>{{ contrato.institucion }}</td>
+        <td>{{ contrato.sistema }}</td>
+        <td>{{ contrato.fecha_vencimiento }}</td>
+        <td><span class="status">{{ contrato.estado }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h3>Accesos de tu rol</h3>
+    <div class="permission-list">
+      {% for permiso in permisos %}
+        <span>{{ permiso }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Actividad reciente</h3>
+    <p>Inicio de sesión registrado.</p>
+    <p>Panel cargado correctamente.</p>
+    <p>Permisos aplicados según rol.</p>
+  </div>
+</section>
+
+{% endblock %}

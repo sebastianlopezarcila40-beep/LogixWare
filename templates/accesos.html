@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-head">
+  <div>
+    <h1>Roles y accesos</h1>
+    <p>Control interno de permisos por tipo de usuario</p>
+  </div>
+</section>
+
+<section class="role-grid">
+  {% for rol, permisos in roles.items() %}
+  <div class="role-card">
+    <h3>{{ rol }}</h3>
+
+    <p class="role-subtitle">Accesos permitidos</p>
+
+    <div class="permission-list">
+      {% for permiso in permisos %}
+        <span>{{ permiso }}</span>
+      {% endfor %}
+    </div>
+
+    {% if rol == "Desarrollador / Technical Lead" %}
+      <p class="denied">Sin acceso a facturación del servidor ni gestión de usuarios administradores.</p>
+    {% elif rol == "Analista de Soporte / NOC Analyst" %}
+      <p class="denied">Sin acceso al código fuente, variables del servidor ni alteración de logs.</p>
+    {% elif rol == "Ejecutivo de Operaciones / Legal" %}
+      <p class="denied">Sin acceso a consolas de comandos, código o base de datos cruda.</p>
+    {% elif rol == "Inversionista" %}
+      <p class="denied">Solo lectura: reportes ejecutivos, métricas generales y documentos autorizados.</p>
+    {% else %}
+      <p class="denied">Acceso total al sistema interno.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+{% endblock %}

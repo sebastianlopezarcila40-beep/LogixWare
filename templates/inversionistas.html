@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="page-head">
+  <div>
+    <h1>Panel de inversionistas</h1>
+    <p>Indicadores ejecutivos de crecimiento y operación</p>
+  </div>
+</section>
+
+<section class="cards">
+  <div class="card">
+    <div class="icon blue"></div>
+    <p>Colegios activos</p>
+    <h2>4</h2>
+    <a href="#">Ver detalle</a>
+  </div>
+
+  <div class="card">
+    <div class="icon green"></div>
+    <p>Ingresos mensuales</p>
+    <h2>$4.250.000</h2>
+    <a href="#">Ver proyección</a>
+  </div>
+
+  <div class="card">
+    <div class="icon purple"></div>
+    <p>Carnets emitidos</p>
+    <h2>1.280</h2>
+    <a href="#">Ver reporte</a>
+  </div>
+
+  <div class="card">
+    <div class="icon orange"></div>
+    <p>Retención</p>
+    <h2>92%</h2>
+    <a href="#">Ver métricas</a>
+  </div>
+</section>
+
+<div class="panel page-panel">
+  <h3>Resumen ejecutivo</h3>
+  <p>Este panel es solo de lectura. El inversionista puede revisar crecimiento, ingresos, colegios activos y proyecciones, pero no puede modificar información interna.</p>
+</div>
+
+{% endblock %}

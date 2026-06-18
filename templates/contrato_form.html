@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-head">
+  <div>
+    {% if contrato %}
+      <h1>Editar contrato</h1>
+      <p>Actualiza la información del contrato</p>
+    {% else %}
+      <h1>Crear contrato</h1>
+      <p>Registra un nuevo contrato</p>
+    {% endif %}
+  </div>
+</section>
+
+<div class="panel form-panel">
+  <form method="POST">
+    <label>Institución</label>
+    <input name="institucion" required value="{{ contrato.institucion if contrato else '' }}">
+
+    <label>Sistema</label>
+    <input name="sistema" required value="{{ contrato.sistema if contrato else '' }}">
+
+    <label>Fecha de inicio</label>
+    <input type="date" name="fecha_inicio" required value="{{ contrato.fecha_inicio if contrato else '' }}">
+
+    <label>Fecha de vencimiento</label>
+    <input type="date" name="fecha_vencimiento" required value="{{ contrato.fecha_vencimiento if contrato else '' }}">
+
+    <label>Valor</label>
+    <input name="valor" required value="{{ contrato.valor if contrato else '' }}">
+
+    <label>Estado</label>
+    <select name="estado">
+      <option value="Activo">Activo</option>
+      <option value="Próximo a vencer">Próximo a vencer</option>
+      <option value="Vencido">Vencido</option>
+    </select>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar</button>
+      <a class="btn secondary" href="/contratos">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

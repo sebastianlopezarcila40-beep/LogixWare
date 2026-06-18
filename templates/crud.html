@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="page-head">
+  <div>
+    <h1>{{ config.titulo }}</h1>
+    <p>{{ config.descripcion }}</p>
+  </div>
+
+  {% if not creando and not editando %}
+    <a class="btn" href="/{{ slug }}/nuevo">{{ config.boton }}</a>
+  {% endif %}
+</section>
+
+{% if creando or editando %}
+<div class="panel form-panel">
+  <form method="POST">
+
+    {% for field in config.fields %}
+      <label>{{ field.label }}</label>
+
+      {% if field.type == "textarea" %}
+        <textarea name="{{ field.name }}" rows="4" required>{{ registro[field.name] if registro else '' }}</textarea>
+
+      {% elif field.type == "select" %}
+        <select name="{{ field.name }}" required>
+          {% for option in field.options %}
+            <option value="{{ option }}" {% if registro and registro[field.name] == option %}selected{% endif %}>
+              {{ option }}
+            </option>
+          {% endfor %}
+        </select>
+
+      {% else %}
+        <input
+          type="{{ field.type }}"
+          name="{{ field.name }}"
+          required
+          value="{{ registro[field.name] if registro else '' }}"
+        >
+      {% endif %}
+    {% endfor %}
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar</button>
+      <a class="btn secondary" href="/{{ slug }}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if modulo == "reportes" or modulo == "reportes_admin" %}
+<section class="cards">
+  <div class="card">
+    <p>Ingresos brutos</p>
+    <h2>$4.250.000</h2>
+  </div>
+
+  <div class="card">
+    <p>Cuentas por cobrar</p>
+    <h2>$850.000</h2>
+  </div>
+
+  <div class="card">
+    <p>Gastos operación</p>
+    <h2>$320.000</h2>
+  </div>
+
+  <div class="card">
+    <p>Margen neto</p>
+    <h2>$3.930.000</h2>
+  </div>
+</section>
+{% endif %}
+
+<div class="panel page-panel">
+  <table>
+    <tr>
+      {% for col in config.columns %}
+        <th>
+          {% for field in config.fields %}
+            {% if field.name == col %}
+              {{ field.label }}
+            {% endif %}
+          {% endfor %}
+        </th>
+      {% endfor %}
+      <th>Fecha</th>
+      <th>Acciones</th>
+    </tr>
+
+    {% for r in registros %}
+    <tr>
+      {% for col in config.columns %}
+        <td>
+          {% if col == "estado" %}
+            <span class="status">{{ r[col] }}</span>
+          {% else %}
+            {{ r[col] }}
+          {% endif %}
+        </td>
+      {% endfor %}
+
+      <td>{{ r.fecha }}</td>
+
+      <td>
+        <a class="action" href="/{{ slug }}/editar/{{ r.id }}">Editar</a>
+        <a class="danger" href="/{{ slug }}/eliminar/{{ r.id }}">Eliminar</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div class="form-actions" style="margin-top:20px;">
+    <a class="btn" href="/{{ slug }}/export/csv">Descargar Excel / CSV</a>
+    <a class="btn secondary" href="/{{ slug }}/export/pdf">Generar PDF</a>
+    <a class="btn secondary" href="/{{ slug }}/export/word">Descargar Word</a>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-head">
+  <div>
+    <h1>Contratos</h1>
+    <p>Gestiona los contratos de tus clientes</p>
+  </div>
+
+  <a class="btn" href="/contratos/nuevo">Crear contrato</a>
+</section>
+
+<div class="panel page-panel">
+  <table>
+    <tr>
+      <th>Institución</th>
+      <th>Sistema</th>
+      <th>Inicio</th>
+      <th>Vencimiento</th>
+      <th>Valor</th>
+      <th>Estado</th>
+      <th>Acciones</th>
+    </tr>
+
+    {% for contrato in contratos %}
+    <tr>
+      <td>{{ contrato.institucion }}</td>
+      <td>{{ contrato.sistema }}</td>
+      <td>{{ contrato.fecha_inicio }}</td>
+      <td>{{ contrato.fecha_vencimiento }}</td>
+      <td>{{ contrato.valor }}</td>
+      <td><span class="status">{{ contrato.estado }}</span></td>
+      <td>
+        <a class="action" href="/contratos/editar/{{ contrato.id }}">Editar</a>
+        <a class="danger" href="/contratos/eliminar/{{ contrato.id }}">Eliminar</a>
+        <br>
+        <a class="action" href="/contratos/pdf/{{ contrato.id }}/copia">PDF copia</a>
+        <a class="action" href="/contratos/pdf/{{ contrato.id }}/original">PDF original</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% endblock %}

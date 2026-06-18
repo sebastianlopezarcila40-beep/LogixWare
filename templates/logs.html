@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="page-head">
+  <div>
+    <h1>Logs de auditoría</h1>
+    <p>Registro de acciones realizadas dentro del sistema</p>
+  </div>
+</section>
+
+<div class="panel page-panel">
+  <table>
+    <tr>
+      <th>Fecha</th>
+      <th>Usuario</th>
+      <th>Acción</th>
+      <th>Módulo</th>
+      <th>Resultado</th>
+    </tr>
+
+    {% for log in logs %}
+    <tr>
+      <td>{{ log.fecha }}</td>
+      <td>{{ log.usuario }}</td>
+      <td>{{ log.accion }}</td>
+      <td>{{ log.modulo }}</td>
+      <td><span class="status">{{ log.resultado }}</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% endblock %}

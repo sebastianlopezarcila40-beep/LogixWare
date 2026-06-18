@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Login | LogixWare</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="login-page">
+
+  <section class="login-left">
+    <div class="login-brand">
+      <div class="login-logo-frame">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo empresa">
+      </div>
+
+      <h1>LogixWare</h1>
+      <p>Sistema interno empresarial</p>
+    </div>
+  </section>
+
+  <section class="login-right">
+    <div class="login-box">
+      <h2>Iniciar sesión</h2>
+      <p>Acceso privado para el equipo autorizado.</p>
+
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST">
+        <input name="usuario" placeholder="Usuario" required>
+        <input type="password" name="password" placeholder="Contraseña" required>
+        <button type="submit">Ingresar</button>
+      </form>
+
+      <div class="demo-users">
+        <b>Usuarios de prueba</b>
+        <span>admin / 1234 — Administrador</span>
+        <span>juan / 1234 — Desarrollador</span>
+        <span>laura / 1234 — Soporte NOC</span>
+        <span>martha / 1234 — Legal</span>
+        <span>carlos / 1234 — Inversionista</span>
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>

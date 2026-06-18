@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-head">
+  <div>
+    <h1>Usuarios</h1>
+    <p>Crea usuarios, asigna roles y controla sus accesos al sistema</p>
+  </div>
+
+  <a class="btn" href="/usuarios/nuevo">Crear usuario</a>
+</section>
+
+<div class="panel page-panel">
+  <table>
+    <tr>
+      <th>Nombre</th>
+      <th>Usuario</th>
+      <th>Rol</th>
+      <th>Estado</th>
+      <th>Acciones</th>
+    </tr>
+
+    {% for u in usuarios %}
+    <tr>
+      <td>{{ u.nombre }}</td>
+      <td>{{ u.usuario }}</td>
+      <td>{{ u.rol }}</td>
+      <td><span class="status">{{ u.estado }}</span></td>
+      <td>
+        <a class="action" href="/usuarios/editar/{{ u.id }}">Editar</a>
+        <a class="danger" href="/usuarios/eliminar/{{ u.id }}">Eliminar</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% endblock %}
