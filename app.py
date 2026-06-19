@@ -25,7 +25,7 @@ DB_NAME = os.path.join(os.path.dirname(__file__), "logixware.db")
 ROLES = {
     "Administrador": [
         "dashboard", "gerencia", "contratos", "clientes", "facturacion", "pagos",
-        "equipo", "nomina", "tareas", "repif __name__ == "__main__":
+      "equipo", "nomina", "tareas", "reportes",
     init_db()
     app.run(debug=True, port=5000)ortes", "documentos", "usuarios", "accesos",
         "logs", "mantenimiento", "documentacion", "monitoreo", "estudiantes",
